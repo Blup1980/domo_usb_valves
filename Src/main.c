@@ -60,9 +60,14 @@
 TIM_HandleTypeDef htim2;
 
 osThreadId defaultTaskHandle;
+uint32_t defaultTaskBuffer[ 128 ];
+osStaticThreadDef_t defaultTaskControlBlock;
+osTimerId LedDimmerTimerHandle;
+osStaticTimerDef_t LedDimmerTimerControlBlock;
 
 /* USER CODE BEGIN PV */
 /* Private variables ---------------------------------------------------------*/
+static IndicatorstateTypeDef led_dimmer_sp[NB_LED];
 
 /* USER CODE END PV */
 
@@ -70,7 +75,8 @@ osThreadId defaultTaskHandle;
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_TIM2_Init(void);
-void StartDefaultTask(void const * argument);                                    
+void StartDefaultTask(void const * argument);
+void LedDimmerTimerCallback(void const * argument);                                    
 void HAL_TIM_MspPostInit(TIM_HandleTypeDef *htim);
                                 
 
@@ -125,13 +131,18 @@ int main(void)
   /* add semaphores, ... */
   /* USER CODE END RTOS_SEMAPHORES */
 
+  /* Create the timer(s) */
+  /* definition and creation of LedDimmerTimer */
+  osTimerStaticDef(LedDimmerTimer, LedDimmerTimerCallback, &LedDimmerTimerControlBlock);
+  LedDimmerTimerHandle = osTimerCreate(osTimer(LedDimmerTimer), osTimerPeriodic, NULL);
+
   /* USER CODE BEGIN RTOS_TIMERS */
   /* start timers, add new ones, ... */
   /* USER CODE END RTOS_TIMERS */
 
   /* Create the thread(s) */
   /* definition and creation of defaultTask */
-  osThreadDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 128);
+  osThreadStaticDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 128, defaultTaskBuffer, &defaultTaskControlBlock);
   defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
 
   /* USER CODE BEGIN RTOS_THREADS */
@@ -345,6 +356,63 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN 4 */
 
+void SetLed(uint8_t ledNb, LedstateTypeDef state)
+{
+	GPIO_TypeDef* gpioPort;
+	uint16_t gpioPin;
+	switch(ledNb)
+	{
+	case 0:
+		gpioPort = GPIOB;
+		gpioPin = LED0_Pin;
+		break;
+	case 1:
+		gpioPort = GPIOA;
+		gpioPin = LED1_Pin;
+		break;
+	case 2:
+		gpioPort = GPIOA;
+		gpioPin = LED2_Pin;
+		break;
+	case 3:
+		gpioPort = GPIOA;
+		gpioPin = LED3_Pin;
+		break;
+	case 4:
+		gpioPort = GPIOB;
+		gpioPin = LED4_Pin;
+		break;
+	case 5:
+		gpioPort = GPIOB;
+		gpioPin = LED5_Pin;
+		break;
+	case 6:
+		gpioPort = GPIOB;
+		gpioPin = LED6_Pin;
+		break;
+	case 7:
+		gpioPort = GPIOB;
+		gpioPin = LED7_Pin;
+		break;
+	case 8:
+		gpioPort = GPIOB;
+		gpioPin = LED8_Pin;
+		break;
+	default:
+		gpioPort = LED_STATUS_GPIO_Port;
+		gpioPin = LED_STATUS_Pin;
+		break;
+	}
+	if (state == ON)
+	{
+		HAL_GPIO_WritePin(gpioPort, gpioPin, GPIO_PIN_RESET);
+	}
+	else
+	{
+		HAL_GPIO_WritePin(gpioPort, gpioPin, GPIO_PIN_SET);
+	}
+}
+
 /* USER CODE END 4 */
 
 /* StartDefaultTask function */
@@ -354,12 +422,52 @@ void StartDefaultTask(void const * argument)
   MX_USB_DEVICE_Init();
 
   /* USER CODE BEGIN 5 */
+  osTimerStart(LedDimmerTimerHandle,1000);
   /* Infinite loop */
+  led_dimmer_sp[0] = IND_OFF;
+  led_dimmer_sp[1] = IND_ON;
+  led_dimmer_sp[2] = IND_BLINK;
   for(;;)
   {
     osDelay(1);
   }
   /* USER CODE END 5 */ 
+}
+
+/* LedDimmerTimerCallback function */
+void LedDimmerTimerCallback(void const * argument)
+{
+    /* USER CODE BEGIN LedDimmerTimerCallback */
+	static LedstateTypeDef oldLedState[NB_LED];
+
+	for (uint8_t i = 0; i<NB_LED; i++)
+	{
+		switch(led_dimmer_sp[i])
+		{
+		case IND_OFF:
+			SetLed(i,OFF);
+			oldLedState[i] = OFF;
+			break;
+		case IND_ON:
+			SetLed(i,ON);
+			oldLedState[i] = ON;
+			break;
+		case IND_BLINK:
+			if (oldLedState[i] == ON)
+			{
+				SetLed(i,OFF);
+				oldLedState[i] = OFF;
+			}
+			else
+			{
+				SetLed(i,ON);
+				oldLedState[i] = ON;
+			}
+			break;
+		}
+	}
+  
+  /* USER CODE END LedDimmerTimerCallback */
 }
 
 /**

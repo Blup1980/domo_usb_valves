@@ -1,6 +1,11 @@
 #MicroXplorer Configuration settings - do not modify
-FREERTOS.IPParameters=Tasks01
-FREERTOS.Tasks01=defaultTask,0,128,StartDefaultTask,Default,NULL
+FREERTOS.FootprintOK=true
+FREERTOS.INCLUDE_vTaskDelete=0
+FREERTOS.IPParameters=Tasks01,MEMORY_ALLOCATION,FootprintOK,configUSE_TIMERS,INCLUDE_vTaskDelete,Timers01
+FREERTOS.MEMORY_ALLOCATION=1
+FREERTOS.Tasks01=defaultTask,0,128,StartDefaultTask,Default,NULL,Static,defaultTaskBuffer,defaultTaskControlBlock
+FREERTOS.Timers01=LedDimmerTimer,LedDimmerTimerCallback,osTimerPeriodic,Default,NULL,Static,LedDimmerTimerControlBlock
+FREERTOS.configUSE_TIMERS=1
 File.Version=6
 KeepUserPlacement=false
 Mcu.Family=STM32L0

@@ -112,6 +112,11 @@
 
 /* USER CODE BEGIN Private defines */
 
+#define NB_LED 10
+
+typedef enum ledstate {ON,OFF}  LedstateTypeDef;
+typedef enum indicatorstate {IND_ON, IND_OFF, IND_BLINK}  IndicatorstateTypeDef;
+
 /* USER CODE END Private defines */
 
 #ifdef __cplusplus
