@@ -64,10 +64,16 @@ uint32_t defaultTaskBuffer[ 128 ];
 osStaticThreadDef_t defaultTaskControlBlock;
 osTimerId LedDimmerTimerHandle;
 osStaticTimerDef_t LedDimmerTimerControlBlock;
+osTimerId ValveSwitchDelayTimerHandle;
+osStaticTimerDef_t ValveSwitchDelayTimerControlBlock;
 
 /* USER CODE BEGIN PV */
 /* Private variables ---------------------------------------------------------*/
 static IndicatorstateTypeDef led_dimmer_sp[NB_LED];
+
+uint8_t waitQueue[NB_SSR];
+SsrstateTypeDef channelStatus[NB_SSR];
+uint8_t currentlyPreHeating = EMPTY_SLOT;
 
 /* USER CODE END PV */
 
@@ -76,12 +82,18 @@ void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_TIM2_Init(void);
 void StartDefaultTask(void const * argument);
-void LedDimmerTimerCallback(void const * argument);                                    
+void LedDimmerTimerCallback(void const * argument);
+void ValveSwitchDelayTimerCallback(void const * argument);                                    
 void HAL_TIM_MspPostInit(TIM_HandleTypeDef *htim);
                                 
 
 /* USER CODE BEGIN PFP */
 /* Private function prototypes -----------------------------------------------*/
+void timeStepElapsed();
+void stop(uint8_t channelNb);
+void addToEnableRequests(uint8_t channelNb);
+void InitWaitQueue();
+
 
 /* USER CODE END PFP */
 
@@ -106,6 +118,7 @@ int main(void)
   HAL_Init();
 
   /* USER CODE BEGIN Init */
+  InitWaitQueue();
 
   /* USER CODE END Init */
 
@@ -135,6 +148,10 @@ int main(void)
   /* definition and creation of LedDimmerTimer */
   osTimerStaticDef(LedDimmerTimer, LedDimmerTimerCallback, &LedDimmerTimerControlBlock);
   LedDimmerTimerHandle = osTimerCreate(osTimer(LedDimmerTimer), osTimerPeriodic, NULL);
+
+  /* definition and creation of ValveSwitchDelayTimer */
+  osTimerStaticDef(ValveSwitchDelayTimer, ValveSwitchDelayTimerCallback, &ValveSwitchDelayTimerControlBlock);
+  ValveSwitchDelayTimerHandle = osTimerCreate(osTimer(ValveSwitchDelayTimer), osTimerOnce, NULL);
 
   /* USER CODE BEGIN RTOS_TIMERS */
   /* start timers, add new ones, ... */
@@ -356,7 +373,60 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN 4 */
 
-void SetLed(uint8_t ledNb, LedstateTypeDef state)
+void SetSwitch(uint8_t switchNb, OnoffstateTypeDef state)
+{
+	GPIO_TypeDef* gpioPort;
+	uint16_t gpioPin;
+	switch(switchNb)
+	{
+	case 0:
+		gpioPort = GPIOA;
+		gpioPin = SSR0_Pin;
+		break;
+	case 1:
+		gpioPort = GPIOA;
+		gpioPin = SSR1_Pin;
+		break;
+	case 2:
+		gpioPort = GPIOA;
+		gpioPin = SSR2_Pin;
+		break;
+	case 3:
+		gpioPort = GPIOA;
+		gpioPin = SSR3_Pin;
+		break;
+	case 4:
+		gpioPort = GPIOA;
+		gpioPin = SSR4_Pin;
+		break;
+	case 5:
+		gpioPort = GPIOA;
+		gpioPin = SSR5_Pin;
+		break;
+	case 6:
+		gpioPort = GPIOA;
+		gpioPin = SSR6_Pin;
+		break;
+	case 7:
+		gpioPort = GPIOA;
+		gpioPin = SSR7_Pin;
+		break;
+	default:
+		gpioPort = GPIOB;
+		gpioPin = SSR8_Pin;
+		break;
+	}
+	if (state == ON)
+	{
+		HAL_GPIO_WritePin(gpioPort, gpioPin, GPIO_PIN_SET);
+	}
+	else
+	{
+		HAL_GPIO_WritePin(gpioPort, gpioPin, GPIO_PIN_RESET);
+	}
+}
+
+void SetLed(uint8_t ledNb, OnoffstateTypeDef state)
 {
 	GPIO_TypeDef* gpioPort;
 	uint16_t gpioPin;
@@ -413,6 +483,87 @@ void SetLed(uint8_t ledNb, LedstateTypeDef state)
 	}
 }
 
+
+void InitWaitQueue()
+{
+	for (uint8_t i = 0; i<NB_SSR;i++)
+	{
+		waitQueue[i] = EMPTY_SLOT;
+	}
+	currentlyPreHeating = EMPTY_SLOT;
+}
+
+void addToEnableRequests(uint8_t channelNb)
+{
+	if (currentlyPreHeating == EMPTY_SLOT)
+	{
+		currentlyPreHeating = channelNb;
+		channelStatus[channelNb] = SSR_ON;
+	}
+	else
+	{
+		for (uint8_t i = 0; i<NB_SSR;i++)
+		{
+			if (waitQueue[i] == channelNb)
+				break;
+
+			if (waitQueue[i] == EMPTY_SLOT)
+			{
+				waitQueue[i] = channelNb;
+				channelStatus[channelNb] = SSR_PENDING_ON;
+				if (i == 0)
+				{
+					//timer started. first element inserted
+					osTimerStart(ValveSwitchDelayTimerHandle,OVERCONSUMPTION_MS);
+				}
+				break;
+			}
+		}
+	}
+
+}
+
+void timeStepElapsed()
+{
+	currentlyPreHeating = waitQueue[0];
+	channelStatus[currentlyPreHeating] = SSR_ON;
+
+	for (uint8_t j = 0; j<NB_SSR-1;j++)
+	{
+		waitQueue[j] = waitQueue[j+1];
+	}
+	waitQueue[NB_SSR-1] = EMPTY_SLOT;
+
+	if (waitQueue[0] != EMPTY_SLOT)
+	{
+		// timer started. elements still in the queue
+		osTimerStart(ValveSwitchDelayTimerHandle,OVERCONSUMPTION_MS);
+	}
+
+}
+
+void stop(uint8_t channelNb)
+{
+	for (uint8_t i = 0; i<NB_SSR;i++)
+	{
+		if (waitQueue[i] == channelNb)
+			waitQueue[i] = EMPTY_SLOT;
+
+		if ((waitQueue[i] == EMPTY_SLOT) && (i < (NB_SSR-1) ))
+		{
+			waitQueue[i] = waitQueue[i + 1];
+			waitQueue[i + 1] = EMPTY_SLOT;
+		}
+	}
+	channelStatus[channelNb] = SSR_OFF;
+	if (currentlyPreHeating == channelNb)
+	{
+		timeStepElapsed();
+	}
+}
+
+
+
 /* USER CODE END 4 */
 
 /* StartDefaultTask function */
@@ -422,14 +573,32 @@ void StartDefaultTask(void const * argument)
   MX_USB_DEVICE_Init();
 
   /* USER CODE BEGIN 5 */
-  osTimerStart(LedDimmerTimerHandle,1000);
+  osTimerStart(LedDimmerTimerHandle,BLINK_MS);
   /* Infinite loop */
-  led_dimmer_sp[0] = IND_OFF;
-  led_dimmer_sp[1] = IND_ON;
-  led_dimmer_sp[2] = IND_BLINK;
+
   for(;;)
   {
     osDelay(1);
+    for (uint8_t i = 0; i<NB_SSR;i++)
+    {
+    	switch(channelStatus[i])
+    	{
+    	case SSR_OFF:
+    		SetSwitch(i,OFF);
+    		led_dimmer_sp[i] = IND_OFF;
+    		break;
+    	case SSR_ON:
+    		SetSwitch(i,ON);
+    		led_dimmer_sp[i] = IND_ON;
+    		break;
+    	case SSR_PENDING_ON:
+    		SetSwitch(i,OFF);
+    		led_dimmer_sp[i] = IND_BLINK;
+    		break;
+    	default:
+    		break;
+    	}
+    }
   }
   /* USER CODE END 5 */ 
 }
@@ -437,8 +606,8 @@ void StartDefaultTask(void const * argument)
 /* LedDimmerTimerCallback function */
 void LedDimmerTimerCallback(void const * argument)
 {
-    /* USER CODE BEGIN LedDimmerTimerCallback */
-	static LedstateTypeDef oldLedState[NB_LED];
+  /* USER CODE BEGIN LedDimmerTimerCallback */
+	static OnoffstateTypeDef oldLedState[NB_LED];
 
 	for (uint8_t i = 0; i<NB_LED; i++)
 	{
@@ -468,6 +637,14 @@ void LedDimmerTimerCallback(void const * argument)
 	}
   
   /* USER CODE END LedDimmerTimerCallback */
+}
+
+/* ValveSwitchDelayTimerCallback function */
+void ValveSwitchDelayTimerCallback(void const * argument)
+{
+  /* USER CODE BEGIN ValveSwitchDelayTimerCallback */
+	timeStepElapsed();
+  /* USER CODE END ValveSwitchDelayTimerCallback */
 }
 
 /**

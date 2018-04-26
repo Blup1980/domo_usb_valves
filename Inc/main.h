@@ -59,6 +59,8 @@
 
 /* Private define ------------------------------------------------------------*/
 #define USB_BUF_SIZE 128
+#define OVERCONSUMPTION_MS 5000
+#define BLINK_MS 1000
 
 #define BTN_Pin GPIO_PIN_14
 #define BTN_GPIO_Port GPIOC
@@ -113,9 +115,12 @@
 /* USER CODE BEGIN Private defines */
 
 #define NB_LED 10
+#define NB_SSR 9
+#define EMPTY_SLOT 0xff
 
-typedef enum ledstate {ON,OFF}  LedstateTypeDef;
-typedef enum indicatorstate {IND_ON, IND_OFF, IND_BLINK}  IndicatorstateTypeDef;
+typedef enum onoffstate {ON,OFF}  OnoffstateTypeDef;
+typedef enum indicatorstate {IND_OFF, IND_ON, IND_BLINK}  IndicatorstateTypeDef;
+typedef enum ssrstate {SSR_OFF, SSR_ON, SSR_PENDING_ON}  SsrstateTypeDef;
 
 /* USER CODE END Private defines */
 
