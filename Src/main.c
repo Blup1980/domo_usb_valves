@@ -10,7 +10,7 @@
   * inserted by the user or by software development tools
   * are owned by their respective copyright owners.
   *
-  * Copyright (c) 2018 STMicroelectronics International N.V. 
+  * Copyright (c) 2019 STMicroelectronics International N.V. 
   * All rights reserved.
   *
   * Redistribution and use in source and binary forms, with or without 
@@ -53,6 +53,7 @@
 #include "usb_device.h"
 
 /* USER CODE BEGIN Includes */
+#include "usbd_cdc_if.h"
 
 /* USER CODE END Includes */
 
@@ -62,10 +63,18 @@ TIM_HandleTypeDef htim2;
 osThreadId defaultTaskHandle;
 uint32_t defaultTaskBuffer[ 128 ];
 osStaticThreadDef_t defaultTaskControlBlock;
+osThreadId USBParserTaskHandle;
+uint32_t USBParserTaskBuffer[ 128 ];
+osStaticThreadDef_t USBParserTaskControlBlock;
+osMessageQId USBFromPCQueueHandle;
+uint8_t USBFromPCQueueBuffer[ 16 * sizeof( usbCommand_t ) ];
+osStaticMessageQDef_t USBFromPCQueueControlBlock;
 osTimerId LedDimmerTimerHandle;
 osStaticTimerDef_t LedDimmerTimerControlBlock;
 osTimerId ValveSwitchDelayTimerHandle;
 osStaticTimerDef_t ValveSwitchDelayTimerControlBlock;
+osTimerId statusReportTimerHandle;
+osStaticTimerDef_t statusReportTimerControlBlock;
 
 /* USER CODE BEGIN PV */
 /* Private variables ---------------------------------------------------------*/
@@ -82,18 +91,23 @@ void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_TIM2_Init(void);
 void StartDefaultTask(void const * argument);
+void StartUSBParserTask(void const * argument);
 void LedDimmerTimerCallback(void const * argument);
-void ValveSwitchDelayTimerCallback(void const * argument);                                    
+void ValveSwitchDelayTimerCallback(void const * argument);
+void statusReportTimerCallback(void const * argument);                                    
 void HAL_TIM_MspPostInit(TIM_HandleTypeDef *htim);
                                 
 
 /* USER CODE BEGIN PFP */
 /* Private function prototypes -----------------------------------------------*/
-void timeStepElapsed();
-void stop(uint8_t channelNb);
-void addToEnableRequests(uint8_t channelNb);
-void InitWaitQueue();
-
+void
+timeStepElapsed ();
+void
+stop (uint8_t channelNb);
+void
+addToEnableRequests (uint8_t channelNb);
+void
+InitWaitQueue ();
 
 /* USER CODE END PFP */
 
@@ -118,7 +132,7 @@ int main(void)
   HAL_Init();
 
   /* USER CODE BEGIN Init */
-  InitWaitQueue();
+    InitWaitQueue ();
 
   /* USER CODE END Init */
 
@@ -137,11 +151,11 @@ int main(void)
   /* USER CODE END 2 */
 
   /* USER CODE BEGIN RTOS_MUTEX */
-  /* add mutexes, ... */
+    /* add mutexes, ... */
   /* USER CODE END RTOS_MUTEX */
 
   /* USER CODE BEGIN RTOS_SEMAPHORES */
-  /* add semaphores, ... */
+    /* add semaphores, ... */
   /* USER CODE END RTOS_SEMAPHORES */
 
   /* Create the timer(s) */
@@ -153,8 +167,12 @@ int main(void)
   osTimerStaticDef(ValveSwitchDelayTimer, ValveSwitchDelayTimerCallback, &ValveSwitchDelayTimerControlBlock);
   ValveSwitchDelayTimerHandle = osTimerCreate(osTimer(ValveSwitchDelayTimer), osTimerOnce, NULL);
 
+  /* definition and creation of statusReportTimer */
+  osTimerStaticDef(statusReportTimer, statusReportTimerCallback, &statusReportTimerControlBlock);
+  statusReportTimerHandle = osTimerCreate(osTimer(statusReportTimer), osTimerPeriodic, NULL);
+
   /* USER CODE BEGIN RTOS_TIMERS */
-  /* start timers, add new ones, ... */
+    /* start timers, add new ones, ... */
   /* USER CODE END RTOS_TIMERS */
 
   /* Create the thread(s) */
@@ -162,12 +180,21 @@ int main(void)
   osThreadStaticDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 128, defaultTaskBuffer, &defaultTaskControlBlock);
   defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
 
+  /* definition and creation of USBParserTask */
+  osThreadStaticDef(USBParserTask, StartUSBParserTask, osPriorityNormal, 0, 128, USBParserTaskBuffer, &USBParserTaskControlBlock);
+  USBParserTaskHandle = osThreadCreate(osThread(USBParserTask), NULL);
+
   /* USER CODE BEGIN RTOS_THREADS */
-  /* add threads, ... */
+    /* add threads, ... */
   /* USER CODE END RTOS_THREADS */
 
+  /* Create the queue(s) */
+  /* definition and creation of USBFromPCQueue */
+  osMessageQStaticDef(USBFromPCQueue, 16, usbCommand_t, USBFromPCQueueBuffer, &USBFromPCQueueControlBlock);
+  USBFromPCQueueHandle = osMessageCreate(osMessageQ(USBFromPCQueue), NULL);
+
   /* USER CODE BEGIN RTOS_QUEUES */
-  /* add queues, ... */
+    /* add queues, ... */
   /* USER CODE END RTOS_QUEUES */
  
 
@@ -178,14 +205,14 @@ int main(void)
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-  while (1)
-  {
+    while (1)
+    {
 
   /* USER CODE END WHILE */
 
   /* USER CODE BEGIN 3 */
 
-  }
+    }
   /* USER CODE END 3 */
 
 }
@@ -373,196 +400,196 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN 4 */
 
-void SetSwitch(uint8_t switchNb, OnoffstateTypeDef state)
-{
-	GPIO_TypeDef* gpioPort;
-	uint16_t gpioPin;
-	switch(switchNb)
-	{
-	case 0:
-		gpioPort = GPIOA;
-		gpioPin = SSR0_Pin;
-		break;
-	case 1:
-		gpioPort = GPIOA;
-		gpioPin = SSR1_Pin;
-		break;
-	case 2:
-		gpioPort = GPIOA;
-		gpioPin = SSR2_Pin;
-		break;
-	case 3:
-		gpioPort = GPIOA;
-		gpioPin = SSR3_Pin;
-		break;
-	case 4:
-		gpioPort = GPIOA;
-		gpioPin = SSR4_Pin;
-		break;
-	case 5:
-		gpioPort = GPIOA;
-		gpioPin = SSR5_Pin;
-		break;
-	case 6:
-		gpioPort = GPIOA;
-		gpioPin = SSR6_Pin;
-		break;
-	case 7:
-		gpioPort = GPIOA;
-		gpioPin = SSR7_Pin;
-		break;
-	default:
-		gpioPort = GPIOB;
-		gpioPin = SSR8_Pin;
-		break;
-	}
-	if (state == ON)
-	{
-		HAL_GPIO_WritePin(gpioPort, gpioPin, GPIO_PIN_SET);
-	}
-	else
-	{
-		HAL_GPIO_WritePin(gpioPort, gpioPin, GPIO_PIN_RESET);
-	}
+void
+SetSwitch (uint8_t switchNb, OnoffstateTypeDef state) {
+    GPIO_TypeDef* gpioPort;
+    uint16_t gpioPin;
+    switch (switchNb)
+    {
+        case 0:
+            gpioPort = GPIOA;
+            gpioPin = SSR0_Pin;
+            break;
+        case 1:
+            gpioPort = GPIOA;
+            gpioPin = SSR1_Pin;
+            break;
+        case 2:
+            gpioPort = GPIOA;
+            gpioPin = SSR2_Pin;
+            break;
+        case 3:
+            gpioPort = GPIOA;
+            gpioPin = SSR3_Pin;
+            break;
+        case 4:
+            gpioPort = GPIOA;
+            gpioPin = SSR4_Pin;
+            break;
+        case 5:
+            gpioPort = GPIOA;
+            gpioPin = SSR5_Pin;
+            break;
+        case 6:
+            gpioPort = GPIOA;
+            gpioPin = SSR6_Pin;
+            break;
+        case 7:
+            gpioPort = GPIOA;
+            gpioPin = SSR7_Pin;
+            break;
+        default:
+            gpioPort = GPIOB;
+            gpioPin = SSR8_Pin;
+            break;
+    }
+    if (state == ON)
+    {
+        HAL_GPIO_WritePin (gpioPort, gpioPin, GPIO_PIN_SET);
+    }
+    else
+    {
+        HAL_GPIO_WritePin (gpioPort, gpioPin, GPIO_PIN_RESET);
+    }
 }
 
-void SetLed(uint8_t ledNb, OnoffstateTypeDef state)
-{
-	GPIO_TypeDef* gpioPort;
-	uint16_t gpioPin;
-	switch(ledNb)
-	{
-	case 0:
-		gpioPort = GPIOB;
-		gpioPin = LED0_Pin;
-		break;
-	case 1:
-		gpioPort = GPIOA;
-		gpioPin = LED1_Pin;
-		break;
-	case 2:
-		gpioPort = GPIOA;
-		gpioPin = LED2_Pin;
-		break;
-	case 3:
-		gpioPort = GPIOA;
-		gpioPin = LED3_Pin;
-		break;
-	case 4:
-		gpioPort = GPIOB;
-		gpioPin = LED4_Pin;
-		break;
-	case 5:
-		gpioPort = GPIOB;
-		gpioPin = LED5_Pin;
-		break;
-	case 6:
-		gpioPort = GPIOB;
-		gpioPin = LED6_Pin;
-		break;
-	case 7:
-		gpioPort = GPIOB;
-		gpioPin = LED7_Pin;
-		break;
-	case 8:
-		gpioPort = GPIOB;
-		gpioPin = LED8_Pin;
-		break;
-	default:
-		gpioPort = LED_STATUS_GPIO_Port;
-		gpioPin = LED_STATUS_Pin;
-		break;
-	}
-	if (state == ON)
-	{
-		HAL_GPIO_WritePin(gpioPort, gpioPin, GPIO_PIN_RESET);
-	}
-	else
-	{
-		HAL_GPIO_WritePin(gpioPort, gpioPin, GPIO_PIN_SET);
-	}
+void
+SetLed (uint8_t ledNb, OnoffstateTypeDef state) {
+    GPIO_TypeDef* gpioPort;
+    uint16_t gpioPin;
+    switch (ledNb)
+    {
+        case 0:
+            gpioPort = GPIOB;
+            gpioPin = LED0_Pin;
+            break;
+        case 1:
+            gpioPort = GPIOA;
+            gpioPin = LED1_Pin;
+            break;
+        case 2:
+            gpioPort = GPIOA;
+            gpioPin = LED2_Pin;
+            break;
+        case 3:
+            gpioPort = GPIOA;
+            gpioPin = LED3_Pin;
+            break;
+        case 4:
+            gpioPort = GPIOB;
+            gpioPin = LED4_Pin;
+            break;
+        case 5:
+            gpioPort = GPIOB;
+            gpioPin = LED5_Pin;
+            break;
+        case 6:
+            gpioPort = GPIOB;
+            gpioPin = LED6_Pin;
+            break;
+        case 7:
+            gpioPort = GPIOB;
+            gpioPin = LED7_Pin;
+            break;
+        case 8:
+            gpioPort = GPIOB;
+            gpioPin = LED8_Pin;
+            break;
+        default:
+            gpioPort = LED_STATUS_GPIO_Port;
+            gpioPin = LED_STATUS_Pin;
+            break;
+    }
+    if (state == ON)
+    {
+        HAL_GPIO_WritePin (gpioPort, gpioPin, GPIO_PIN_RESET);
+    }
+    else
+    {
+        HAL_GPIO_WritePin (gpioPort, gpioPin, GPIO_PIN_SET);
+    }
 }
 
-
-void InitWaitQueue()
-{
-	for (uint8_t i = 0; i<NB_SSR;i++)
-	{
-		waitQueue[i] = EMPTY_SLOT;
-	}
-	currentlyPreHeating = EMPTY_SLOT;
+void
+InitWaitQueue () {
+    for (uint8_t i = 0; i < NB_SSR; i++)
+    {
+        waitQueue[i] = EMPTY_SLOT;
+    }
+    currentlyPreHeating = EMPTY_SLOT;
 }
 
-void addToEnableRequests(uint8_t channelNb)
-{
-	if (currentlyPreHeating == EMPTY_SLOT)
-	{
-		currentlyPreHeating = channelNb;
-		channelStatus[channelNb] = SSR_ON;
-	}
-	else
-	{
-		for (uint8_t i = 0; i<NB_SSR;i++)
-		{
-			if (waitQueue[i] == channelNb)
-				break;
+void
+addToEnableRequests (uint8_t channelNb) {
+    if (channelStatus[channelNb] != SSR_OFF)
+        return;
+    if (currentlyPreHeating == EMPTY_SLOT)
+    {
+        currentlyPreHeating = channelNb;
+        channelStatus[channelNb] = SSR_ON;
+    }
+    else
+    {
+        for (uint8_t i = 0; i < NB_SSR; i++)
+        {
+            if (waitQueue[i] == channelNb)
+                break;
 
-			if (waitQueue[i] == EMPTY_SLOT)
-			{
-				waitQueue[i] = channelNb;
-				channelStatus[channelNb] = SSR_PENDING_ON;
-				if (i == 0)
-				{
-					//timer started. first element inserted
-					osTimerStart(ValveSwitchDelayTimerHandle,OVERCONSUMPTION_MS);
-				}
-				break;
-			}
-		}
-	}
-
-}
-
-void timeStepElapsed()
-{
-	currentlyPreHeating = waitQueue[0];
-	channelStatus[currentlyPreHeating] = SSR_ON;
-
-	for (uint8_t j = 0; j<NB_SSR-1;j++)
-	{
-		waitQueue[j] = waitQueue[j+1];
-	}
-	waitQueue[NB_SSR-1] = EMPTY_SLOT;
-
-	if (waitQueue[0] != EMPTY_SLOT)
-	{
-		// timer started. elements still in the queue
-		osTimerStart(ValveSwitchDelayTimerHandle,OVERCONSUMPTION_MS);
-	}
+            if (waitQueue[i] == EMPTY_SLOT)
+            {
+                waitQueue[i] = channelNb;
+                channelStatus[channelNb] = SSR_PENDING_ON;
+                if (i == 0)
+                {
+                    //timer started. first element inserted
+                    osTimerStart (ValveSwitchDelayTimerHandle,
+                    OVERCONSUMPTION_MS);
+                }
+                break;
+            }
+        }
+    }
 
 }
 
-void stop(uint8_t channelNb)
-{
-	for (uint8_t i = 0; i<NB_SSR;i++)
-	{
-		if (waitQueue[i] == channelNb)
-			waitQueue[i] = EMPTY_SLOT;
+void
+timeStepElapsed () {
+    currentlyPreHeating = waitQueue[0];
+    channelStatus[currentlyPreHeating] = SSR_ON;
 
-		if ((waitQueue[i] == EMPTY_SLOT) && (i < (NB_SSR-1) ))
-		{
-			waitQueue[i] = waitQueue[i + 1];
-			waitQueue[i + 1] = EMPTY_SLOT;
-		}
-	}
-	channelStatus[channelNb] = SSR_OFF;
-	if (currentlyPreHeating == channelNb)
-	{
-		timeStepElapsed();
-	}
+    for (uint8_t j = 0; j < NB_SSR - 1; j++)
+    {
+        waitQueue[j] = waitQueue[j + 1];
+    }
+    waitQueue[NB_SSR - 1] = EMPTY_SLOT;
+
+    if (waitQueue[0] != EMPTY_SLOT)
+    {
+        // timer started. elements still in the queue
+        osTimerStart (ValveSwitchDelayTimerHandle, OVERCONSUMPTION_MS);
+    }
+
 }
 
+void
+stop (uint8_t channelNb) {
+    for (uint8_t i = 0; i < NB_SSR; i++)
+    {
+        if (waitQueue[i] == channelNb)
+            waitQueue[i] = EMPTY_SLOT;
 
+        if ((waitQueue[i] == EMPTY_SLOT) && (i < (NB_SSR - 1)))
+        {
+            waitQueue[i] = waitQueue[i + 1];
+            waitQueue[i + 1] = EMPTY_SLOT;
+        }
+    }
+    channelStatus[channelNb] = SSR_OFF;
+    if (currentlyPreHeating == channelNb)
+    {
+        timeStepElapsed ();
+    }
+}
 
 /* USER CODE END 4 */
 
@@ -573,69 +600,101 @@ void StartDefaultTask(void const * argument)
   MX_USB_DEVICE_Init();
 
   /* USER CODE BEGIN 5 */
-  osTimerStart(LedDimmerTimerHandle,BLINK_MS);
-  /* Infinite loop */
+    osTimerStart (LedDimmerTimerHandle, BLINK_MS);
+    osTimerStart (statusReportTimerHandle, REPORTCYCLE_MS);
+    /* Infinite loop */
 
-  for(;;)
-  {
-    osDelay(1);
-    for (uint8_t i = 0; i<NB_SSR;i++)
+    for (;;)
     {
-    	switch(channelStatus[i])
-    	{
-    	case SSR_OFF:
-    		SetSwitch(i,OFF);
-    		led_dimmer_sp[i] = IND_OFF;
-    		break;
-    	case SSR_ON:
-    		SetSwitch(i,ON);
-    		led_dimmer_sp[i] = IND_ON;
-    		break;
-    	case SSR_PENDING_ON:
-    		SetSwitch(i,OFF);
-    		led_dimmer_sp[i] = IND_BLINK;
-    		break;
-    	default:
-    		break;
-    	}
+        osDelay (1);
+        for (uint8_t i = 0; i < NB_SSR; i++)
+        {
+            switch (channelStatus[i])
+            {
+                case SSR_OFF:
+                    SetSwitch (i, OFF);
+                    led_dimmer_sp[i] = IND_OFF;
+                    break;
+                case SSR_ON:
+                    SetSwitch (i, ON);
+                    led_dimmer_sp[i] = IND_ON;
+                    break;
+                case SSR_PENDING_ON:
+                    SetSwitch (i, OFF);
+                    led_dimmer_sp[i] = IND_BLINK;
+                    break;
+                default:
+                    break;
+            }
+        }
     }
-  }
   /* USER CODE END 5 */ 
+}
+
+/* StartUSBParserTask function */
+void StartUSBParserTask(void const * argument)
+{
+  /* USER CODE BEGIN StartUSBParserTask */
+    usbCommand_t newCmd;
+    uint8_t channelNb;
+    /* Infinite loop */
+    for (;;)
+    {
+        if( xQueueReceive( USBFromPCQueueHandle, &newCmd, portMAX_DELAY ) )
+        {
+            if(newCmd.byte[0] < '0' || newCmd.byte[0] > '9')
+                continue;
+            channelNb = newCmd.byte[0] - 0x30;
+            switch(newCmd.byte[1])
+            {
+                case '+':
+                    addToEnableRequests(channelNb);
+                    break;
+                case '-':
+                    stop(channelNb);
+                    break;
+                default:
+                    break;
+            }
+        }
+        osDelay (1);
+    }
+  /* USER CODE END StartUSBParserTask */
 }
 
 /* LedDimmerTimerCallback function */
 void LedDimmerTimerCallback(void const * argument)
 {
   /* USER CODE BEGIN LedDimmerTimerCallback */
-	static OnoffstateTypeDef oldLedState[NB_LED];
+    static OnoffstateTypeDef oldLedState[NB_LED];
 
-	for (uint8_t i = 0; i<NB_LED; i++)
-	{
-		switch(led_dimmer_sp[i])
-		{
-		case IND_OFF:
-			SetLed(i,OFF);
-			oldLedState[i] = OFF;
-			break;
-		case IND_ON:
-			SetLed(i,ON);
-			oldLedState[i] = ON;
-			break;
-		case IND_BLINK:
-			if (oldLedState[i] == ON)
-			{
-				SetLed(i,OFF);
-				oldLedState[i] = OFF;
-			}
-			else
-			{
-				SetLed(i,ON);
-				oldLedState[i] = ON;
-			}
-			break;
-		}
-	}
-  
+    for (uint8_t i = 0; i < NB_LED; i++)
+    {
+        switch (led_dimmer_sp[i])
+        {
+            case IND_OFF:
+                SetLed (i, OFF);
+                oldLedState[i] = OFF;
+                break;
+            case IND_ON:
+                SetLed (i, ON);
+                oldLedState[i] = ON;
+                break;
+            case IND_BLINK:
+                if (oldLedState[i] == ON)
+                {
+                    SetLed (i, OFF);
+                    oldLedState[i] = OFF;
+                }
+                else
+                {
+                    SetLed (i, ON);
+                    oldLedState[i] = ON;
+                }
+                break;
+        }
+    }
+
   /* USER CODE END LedDimmerTimerCallback */
 }
 
@@ -643,8 +702,58 @@ void LedDimmerTimerCallback(void const * argument)
 void ValveSwitchDelayTimerCallback(void const * argument)
 {
   /* USER CODE BEGIN ValveSwitchDelayTimerCallback */
-	timeStepElapsed();
+    timeStepElapsed ();
   /* USER CODE END ValveSwitchDelayTimerCallback */
+}
+
+/* statusReportTimerCallback function */
+void statusReportTimerCallback(void const * argument)
+{
+  /* USER CODE BEGIN statusReportTimerCallback */
+    uint8_t buffer[NB_SSR+1];
+    for (uint8_t i = 0; i<NB_SSR; i++)
+    {
+        switch (channelStatus[i])
+        {
+            case SSR_OFF:
+                buffer[i] = '0';
+                break;
+            case SSR_ON:
+                buffer[i] = '1';
+                break;
+            case SSR_PENDING_ON:
+                buffer[i] = '~';
+                break;
+            default:
+                buffer[i] = 'X';
+                break;
+        }
+        buffer[NB_SSR] = STR_CR;
+    }
+
+    CDC_Transmit_FS(buffer, NB_SSR+1);
+  /* USER CODE END statusReportTimerCallback */
+}
+
+/**
+  * @brief  Period elapsed callback in non blocking mode
+  * @note   This function is called  when TIM6 interrupt took place, inside
+  * HAL_TIM_IRQHandler(). It makes a direct call to HAL_IncTick() to increment
+  * a global variable "uwTick" used as application time base.
+  * @param  htim : TIM handle
+  * @retval None
+  */
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+{
+  /* USER CODE BEGIN Callback 0 */
+
+  /* USER CODE END Callback 0 */
+  if (htim->Instance == TIM6) {
+    HAL_IncTick();
+  }
+  /* USER CODE BEGIN Callback 1 */
+
+  /* USER CODE END Callback 1 */
 }
 
 /**
@@ -656,10 +765,10 @@ void ValveSwitchDelayTimerCallback(void const * argument)
 void _Error_Handler(char *file, int line)
 {
   /* USER CODE BEGIN Error_Handler_Debug */
-  /* User can add his own implementation to report the HAL error return state */
-  while(1)
-  {
-  }
+    /* User can add his own implementation to report the HAL error return state */
+    while (1)
+    {
+    }
   /* USER CODE END Error_Handler_Debug */
 }
 
@@ -674,7 +783,7 @@ void _Error_Handler(char *file, int line)
 void assert_failed(uint8_t* file, uint32_t line)
 { 
   /* USER CODE BEGIN 6 */
-  /* User can add his own implementation to report the file name and line number,
+    /* User can add his own implementation to report the file name and line number,
      tex: printf("Wrong parameters value: file %s on line %d\r\n", file, line) */
   /* USER CODE END 6 */
 }

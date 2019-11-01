@@ -10,7 +10,7 @@
   * inserted by the user or by software development tools
   * are owned by their respective copyright owners.
   *
-  * Copyright (c) 2018 STMicroelectronics International N.V. 
+  * Copyright (c) 2019 STMicroelectronics International N.V. 
   * All rights reserved.
   *
   * Redistribution and use in source and binary forms, with or without 
@@ -59,6 +59,7 @@
 #include "usbd_cdc.h"
 
 /* USER CODE BEGIN INCLUDE */
+#include "types.h"
 
 /* USER CODE END INCLUDE */
 
@@ -77,7 +78,8 @@
   * @{
   */
 /* USER CODE BEGIN EXPORTED_DEFINES */
-
+#define STR_CR 0x0D
+#define STR_LF 0x0A
 /* USER CODE END EXPORTED_DEFINES */
 
 /**
