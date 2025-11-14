@@ -6,29 +6,12 @@
   ******************************************************************************
   * @attention
   *
-  * <h2><center>&copy; COPYRIGHT(c) 2016 STMicroelectronics</center></h2>
+  * Copyright (c) 2016 STMicroelectronics.
+  * All rights reserved.
   *
-  * Redistribution and use in source and binary forms, with or without modification,
-  * are permitted provided that the following conditions are met:
-  *   1. Redistributions of source code must retain the above copyright notice,
-  *      this list of conditions and the following disclaimer.
-  *   2. Redistributions in binary form must reproduce the above copyright notice,
-  *      this list of conditions and the following disclaimer in the documentation
-  *      and/or other materials provided with the distribution.
-  *   3. Neither the name of STMicroelectronics nor the names of its contributors
-  *      may be used to endorse or promote products derived from this software
-  *      without specific prior written permission.
-  *
-  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-  * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-  * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-  * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
-  * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
-  * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
-  * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
-  * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
-  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+  * This software is licensed under terms that can be found in the LICENSE file
+  * in the root directory of this software component.
+  * If no LICENSE file comes with this software, it is provided AS-IS.
   *
   ******************************************************************************
   */
@@ -56,6 +39,7 @@
   * @{
   */ 
 
+#if defined(PWR_PVD_SUPPORT)
 /**
   * @brief  PWR PVD configuration structure definition
   */
@@ -67,6 +51,7 @@ typedef struct
   uint32_t Mode;       /*!< Mode: Specifies the operating mode for the selected pins.
                             This parameter can be a value of @ref PWR_PVD_Mode */
 }PWR_PVDTypeDef;
+#endif
 
 /**
   * @}
@@ -76,7 +61,9 @@ typedef struct
   * @{
   */ 
 
+#if defined(PWR_PVD_SUPPORT)
 #define PWR_EXTI_LINE_PVD      EXTI_FTSR_TR16  /*!< External interrupt line 16 Connected to the PVD EXTI Line */
+#endif
 
 /**
   * @}
@@ -90,15 +77,20 @@ typedef struct
   * @{
   */
 #define PWR_WAKEUP_PIN1                PWR_CSR_EWUP1
+#if defined (STM32L010x4) || defined (STM32L011xx) || defined (STM32L021xx)
+#else
 #define PWR_WAKEUP_PIN2                PWR_CSR_EWUP2
-#if defined (STM32L011xx) || defined (STM32L021xx) ||  defined (STM32L031xx) || defined (STM32L041xx) || defined (STM32L071xx) || \
-    defined (STM32L072xx) || defined (STM32L073xx) || defined (STM32L081xx) || defined (STM32L082xx) || defined (STM32L083xx)
+#endif
+#if defined (STM32L010x4) || defined (STM32L010x6) || defined (STM32L011xx) || defined (STM32L021xx) || \
+    defined (STM32L031xx) || defined (STM32L041xx) || defined (STM32L071xx) || defined (STM32L072xx) || \
+    defined (STM32L073xx) || defined (STM32L081xx) || defined (STM32L082xx) || defined (STM32L083xx)
 #define PWR_WAKEUP_PIN3                PWR_CSR_EWUP3
 #endif
 /**
   * @}
   */
 
+#if defined(PWR_PVD_SUPPORT)
 /** @defgroup PWR_PVD_detection_level PVD detection level
   * @{
   */
@@ -118,22 +110,22 @@ typedef struct
 /** @defgroup PWR_PVD_Mode PWR PVD Mode
   * @{
   */
-#define PWR_PVD_MODE_NORMAL                 ((uint32_t)0x00000000U)   /*!< basic mode is used */
-#define PWR_PVD_MODE_IT_RISING              ((uint32_t)0x00010001U)   /*!< External Interrupt Mode with Rising edge trigger detection */
-#define PWR_PVD_MODE_IT_FALLING             ((uint32_t)0x00010002U)   /*!< External Interrupt Mode with Falling edge trigger detection */
-#define PWR_PVD_MODE_IT_RISING_FALLING      ((uint32_t)0x00010003U)   /*!< External Interrupt Mode with Rising/Falling edge trigger detection */
-#define PWR_PVD_MODE_EVENT_RISING           ((uint32_t)0x00020001U)   /*!< Event Mode with Rising edge trigger detection */
-#define PWR_PVD_MODE_EVENT_FALLING          ((uint32_t)0x00020002U)   /*!< Event Mode with Falling edge trigger detection */
-#define PWR_PVD_MODE_EVENT_RISING_FALLING   ((uint32_t)0x00020003U)   /*!< Event Mode with Rising/Falling edge trigger detection */
-
+#define PWR_PVD_MODE_NORMAL                 (0x00000000U)   /*!< basic mode is used */
+#define PWR_PVD_MODE_IT_RISING              (0x00010001U)   /*!< External Interrupt Mode with Rising edge trigger detection */
+#define PWR_PVD_MODE_IT_FALLING             (0x00010002U)   /*!< External Interrupt Mode with Falling edge trigger detection */
+#define PWR_PVD_MODE_IT_RISING_FALLING      (0x00010003U)   /*!< External Interrupt Mode with Rising/Falling edge trigger detection */
+#define PWR_PVD_MODE_EVENT_RISING           (0x00020001U)   /*!< Event Mode with Rising edge trigger detection */
+#define PWR_PVD_MODE_EVENT_FALLING          (0x00020002U)   /*!< Event Mode with Falling edge trigger detection */
+#define PWR_PVD_MODE_EVENT_RISING_FALLING   (0x00020003U)   /*!< Event Mode with Rising/Falling edge trigger detection */
 /**
   * @}
   */
+#endif /* PWR_PVD_SUPPORT */
 
 /** @defgroup PWR_Regulator_state_in_SLEEP_STOP_mode PWR Regulator state in SLEEP/STOP mode
   * @{
   */
-#define PWR_MAINREGULATOR_ON           ((uint32_t)0x00000000U)
+#define PWR_MAINREGULATOR_ON           (0x00000000U)
 #define PWR_LOWPOWERREGULATOR_ON       PWR_CR_LPSDSR
 
 /**
@@ -143,8 +135,8 @@ typedef struct
 /** @defgroup PWR_SLEEP_mode_entry PWR SLEEP mode entry
   * @{
   */
-#define PWR_SLEEPENTRY_WFI             ((uint8_t)0x01U)
-#define PWR_SLEEPENTRY_WFE             ((uint8_t)0x02U)
+#define PWR_SLEEPENTRY_WFI             (0x01U)
+#define PWR_SLEEPENTRY_WFE             (0x02U)
 /**
   * @}
   */
@@ -152,8 +144,8 @@ typedef struct
 /** @defgroup PWR_STOP_mode_entry PWR STOP mode entry
   * @{
   */
-#define PWR_STOPENTRY_WFI              ((uint8_t)0x01U)
-#define PWR_STOPENTRY_WFE              ((uint8_t)0x02U)
+#define PWR_STOPENTRY_WFI              (0x01U)
+#define PWR_STOPENTRY_WFE              (0x02U)
 /**
   * @}
   */
@@ -178,7 +170,9 @@ typedef struct
   */
 #define PWR_FLAG_WU                    PWR_CSR_WUF
 #define PWR_FLAG_SB                    PWR_CSR_SBF
+#if defined(PWR_PVD_SUPPORT)
 #define PWR_FLAG_PVDO                  PWR_CSR_PVDO
+#endif
 #define PWR_FLAG_VREFINTRDY            PWR_CSR_VREFINTRDYF
 #define PWR_FLAG_VOS                   PWR_CSR_VOSF
 #define PWR_FLAG_REGLP                 PWR_CSR_REGLPF
@@ -201,7 +195,7 @@ typedef struct
   *         to reach main mode (resp. to get stabilized) for a transition from 0 to 1. 
   *         Only then the clock can be increased.
   *
-  * @param  __REGULATOR__: specifies the regulator output voltage to achieve
+  * @param  __REGULATOR__ specifies the regulator output voltage to achieve
   *         a tradeoff between performance and power consumption when the device does
   *         not operate at the maximum frequency (refer to the datasheets for more details).
   *          This parameter can be one of the following values:
@@ -216,7 +210,7 @@ typedef struct
 #define __HAL_PWR_VOLTAGESCALING_CONFIG(__REGULATOR__) (MODIFY_REG(PWR->CR, PWR_CR_VOS, (__REGULATOR__)))
 
 /** @brief  Check PWR flag is set or not.
-  * @param  __FLAG__: specifies the flag to check.
+  * @param  __FLAG__ specifies the flag to check.
   *           This parameter can be one of the following values:
   *            @arg PWR_FLAG_WU: Wake Up flag. This flag indicates that a wakeup event
   *                  was received from the WKUP pin or from the RTC alarm (Alarm B),
@@ -228,7 +222,7 @@ typedef struct
   *            @arg PWR_FLAG_PVDO: PVD Output. This flag is valid only if PVD is enabled 
   *                  by the HAL_PWR_EnablePVD() function. The PVD is stopped by Standby mode.
   *                  For this reason, this bit is equal to 0 after Standby or reset
-  *                  until the PVDE bit is set.
+  *                  until the PVDE bit is set. Not available on L0 Value line.
   *            @arg PWR_FLAG_VREFINTRDY: Internal voltage reference (VREFINT) ready flag.
   *                 This bit indicates the state of the internal voltage reference, VREFINT.
   *            @arg PWR_FLAG_VOS: Voltage Scaling select flag. A delay is required for
@@ -244,13 +238,14 @@ typedef struct
 #define __HAL_PWR_GET_FLAG(__FLAG__)                  ((PWR->CSR & (__FLAG__)) == (__FLAG__))
 
 /** @brief  Clear the PWR pending flags.
-  * @param  __FLAG__: specifies the flag to clear.
+  * @param  __FLAG__ specifies the flag to clear.
   *          This parameter can be one of the following values:
   *            @arg PWR_FLAG_WU: Wake Up flag
   *            @arg PWR_FLAG_SB: StandBy flag
   */
 #define __HAL_PWR_CLEAR_FLAG(__FLAG__)                SET_BIT(PWR->CR, (__FLAG__) << 2U)
 
+#if defined(PWR_PVD_SUPPORT)
 /**
   * @brief Enable interrupt on PVD Exti Line 16.
   * @retval None.
@@ -275,20 +270,17 @@ typedef struct
   */
 #define __HAL_PWR_PVD_EXTI_DISABLE_EVENT()  CLEAR_BIT(EXTI->EMR, PWR_EXTI_LINE_PVD)
 
-
 /**
   * @brief  PVD EXTI line configuration: set falling edge trigger.  
   * @retval None.
   */
 #define __HAL_PWR_PVD_EXTI_ENABLE_FALLING_EDGE()  SET_BIT(EXTI->FTSR, PWR_EXTI_LINE_PVD)
 
-
 /**
   * @brief Disable the PVD Extended Interrupt Falling Trigger.
   * @retval None.
   */
 #define __HAL_PWR_PVD_EXTI_DISABLE_FALLING_EDGE()  CLEAR_BIT(EXTI->FTSR, PWR_EXTI_LINE_PVD)
-
 
 /**
   * @brief  PVD EXTI line configuration: set rising edge trigger.
@@ -316,8 +308,6 @@ typedef struct
   */
 #define __HAL_PWR_PVD_EXTI_DISABLE_RISING_FALLING_EDGE()  do { __HAL_PWR_PVD_EXTI_DISABLE_RISING_EDGE();__HAL_PWR_PVD_EXTI_DISABLE_FALLING_EDGE(); } while(0);
 
-
-
 /**
   * @brief Check whether the specified PVD EXTI interrupt flag is set or not.
   * @retval EXTI PVD Line Status.
@@ -336,11 +326,7 @@ typedef struct
   */
 #define __HAL_PWR_PVD_EXTI_GENERATE_SWIT()  SET_BIT(EXTI->SWIER, PWR_EXTI_LINE_PVD)
 
-/**
-  * @brief Generate a Software interrupt on selected EXTI line.
-  * @retval None.
-  */
-#define __HAL_PWR_PVD_EXTI_GENERATE_SWIT()            SET_BIT(EXTI->SWIER, PWR_EXTI_LINE_PVD)
+#endif /* PWR_PVD_SUPPORT */
 
 /**
   * @}
@@ -349,27 +335,29 @@ typedef struct
 /** @addtogroup PWR_Private
   * @{
   */
+#if defined(PWR_PVD_SUPPORT)
 #define IS_PWR_PVD_LEVEL(LEVEL) (((LEVEL) == PWR_PVDLEVEL_0) || ((LEVEL) == PWR_PVDLEVEL_1)|| \
                                  ((LEVEL) == PWR_PVDLEVEL_2) || ((LEVEL) == PWR_PVDLEVEL_3)|| \
                                  ((LEVEL) == PWR_PVDLEVEL_4) || ((LEVEL) == PWR_PVDLEVEL_5)|| \
                                  ((LEVEL) == PWR_PVDLEVEL_6) || ((LEVEL) == PWR_PVDLEVEL_7))
 
 #define IS_PWR_PVD_MODE(MODE) (((MODE) == PWR_PVD_MODE_IT_RISING)|| ((MODE) == PWR_PVD_MODE_IT_FALLING) || \
-                              ((MODE) == PWR_PVD_MODE_IT_RISING_FALLING) || ((MODE) == PWR_PVD_MODE_EVENT_RISING) || \
-                              ((MODE) == PWR_PVD_MODE_EVENT_FALLING) || ((MODE) == PWR_PVD_MODE_EVENT_RISING_FALLING) || \
-                              ((MODE) == PWR_PVD_MODE_NORMAL)) 
+                               ((MODE) == PWR_PVD_MODE_IT_RISING_FALLING) || ((MODE) == PWR_PVD_MODE_EVENT_RISING) || \
+                               ((MODE) == PWR_PVD_MODE_EVENT_FALLING) || ((MODE) == PWR_PVD_MODE_EVENT_RISING_FALLING) || \
+                               ((MODE) == PWR_PVD_MODE_NORMAL)) 
+#endif /* PWR_PVD_SUPPORT */
 
-#if defined (STM32L071xx) || defined (STM32L072xx) || defined (STM32L073xx) || defined (STM32L081xx) || defined (STM32L082xx) || defined (STM32L083xx)
+#if defined (STM32L010x6) || defined (STM32L071xx) || defined (STM32L072xx) || defined (STM32L073xx) || defined (STM32L081xx) || defined (STM32L082xx) || defined (STM32L083xx)
 #define IS_PWR_WAKEUP_PIN(PIN) (((PIN) == PWR_WAKEUP_PIN1) || \
                                 ((PIN) == PWR_WAKEUP_PIN2) || \
                                 ((PIN) == PWR_WAKEUP_PIN3))
-#elif defined (STM32L051xx) || defined (STM32L052xx) || defined (STM32L053xx) || defined (STM32L061xx) || defined (STM32L062xx) || defined (STM32L063xx)
+#elif defined (STM32L010xB) || defined (STM32L051xx) || defined (STM32L052xx) || defined (STM32L053xx) || defined (STM32L062xx) || defined (STM32L063xx)
 #define IS_PWR_WAKEUP_PIN(PIN) (((PIN) == PWR_WAKEUP_PIN1) || \
                                 ((PIN) == PWR_WAKEUP_PIN2))
-#elif defined (STM32L031xx) || defined (STM32L041xx)
+#elif defined (STM32L010x8) || defined (STM32L031xx) || defined (STM32L041xx)
 #define IS_PWR_WAKEUP_PIN(PIN) (((PIN) == PWR_WAKEUP_PIN1) || \
                                 ((PIN) == PWR_WAKEUP_PIN2))
-#elif defined (STM32L011xx) || defined (STM32L021xx)
+#elif defined (STM32L010x4) || defined (STM32L011xx) || defined (STM32L021xx)
 #define IS_PWR_WAKEUP_PIN(PIN) (((PIN) == PWR_WAKEUP_PIN1) || \
                                 ((PIN) == PWR_WAKEUP_PIN3))
 #endif
@@ -405,12 +393,14 @@ void HAL_PWR_DisableBkUpAccess(void);
   * @{
   */
 
+#if defined(PWR_PVD_SUPPORT)
 /* PVD control functions  ************************************************/
 void HAL_PWR_ConfigPVD(PWR_PVDTypeDef *sConfigPVD);
 void HAL_PWR_EnablePVD(void);
 void HAL_PWR_DisablePVD(void);
 void HAL_PWR_PVD_IRQHandler(void);
 void HAL_PWR_PVDCallback(void);
+#endif
 
 /* WakeUp pins configuration functions ****************************************/
 void HAL_PWR_EnableWakeUpPin(uint32_t WakeUpPinx);
@@ -458,6 +448,3 @@ void HAL_PWR_DisableSEVOnPend(void);
 
 
 #endif /* __STM32L0xx_HAL_PWR_H */
-
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/
-
