@@ -23,7 +23,8 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "queue.h"
+#include "usbd_cdc_if.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -61,7 +62,7 @@ const osThreadAttr_t defaultTask_attributes = {
 };
 /* Definitions for USBParserTask */
 osThreadId_t USBParserTaskHandle;
-uint32_t USBParserTaskBuffer[ 64 ];
+uint32_t USBParserTaskBuffer[ 128 ];
 osStaticThreadDef_t USBParserTaskControlBlock;
 const osThreadAttr_t USBParserTask_attributes = {
   .name = "USBParserTask",
@@ -73,7 +74,7 @@ const osThreadAttr_t USBParserTask_attributes = {
 };
 /* Definitions for USBFromPCQueue */
 osMessageQueueId_t USBFromPCQueueHandle;
-uint8_t USBFromPCQueueBuffer[ 16 * sizeof( usbCommand_t ) ];
+uint8_t USBFromPCQueueBuffer[ 10 * sizeof( usbCommand_t ) ];
 osStaticMessageQDef_t USBFromPCQueueControlBlock;
 const osMessageQueueAttr_t USBFromPCQueue_attributes = {
   .name = "USBFromPCQueue",
@@ -98,14 +99,6 @@ const osTimerAttr_t ValveSwitchDelayTimer_attributes = {
   .cb_mem = &ValveSwitchDelayTimerControlBlock,
   .cb_size = sizeof(ValveSwitchDelayTimerControlBlock),
 };
-/* Definitions for statusReportTimer */
-osTimerId_t statusReportTimerHandle;
-osStaticTimerDef_t statusReportTimerControlBlock;
-const osTimerAttr_t statusReportTimer_attributes = {
-  .name = "statusReportTimer",
-  .cb_mem = &statusReportTimerControlBlock,
-  .cb_size = sizeof(statusReportTimerControlBlock),
-};
 /* USER CODE BEGIN PV */
 
 static IndicatorstateTypeDef led_dimmer_sp[NB_LED];
@@ -124,7 +117,6 @@ void StartDefaultTask(void *argument);
 void StartUSBParserTask(void *argument);
 void LedDimmerTimerCallback(void *argument);
 void ValveSwitchDelayTimerCallback(void *argument);
-void statusReportTimerCallback(void *argument);
 
 /* USER CODE BEGIN PFP */
 
@@ -192,16 +184,13 @@ int main(void)
   /* creation of ValveSwitchDelayTimer */
   ValveSwitchDelayTimerHandle = osTimerNew(ValveSwitchDelayTimerCallback, osTimerOnce, NULL, &ValveSwitchDelayTimer_attributes);
 
-  /* creation of statusReportTimer */
-  statusReportTimerHandle = osTimerNew(statusReportTimerCallback, osTimerPeriodic, NULL, &statusReportTimer_attributes);
-
   /* USER CODE BEGIN RTOS_TIMERS */
   /* start timers, add new ones, ... */
   /* USER CODE END RTOS_TIMERS */
 
   /* Create the queue(s) */
   /* creation of USBFromPCQueue */
-  USBFromPCQueueHandle = osMessageQueueNew (16, sizeof(usbCommand_t), &USBFromPCQueue_attributes);
+  USBFromPCQueueHandle = osMessageQueueNew (10, sizeof(usbCommand_t), &USBFromPCQueue_attributes);
 
   /* USER CODE BEGIN RTOS_QUEUES */
   /* add queues, ... */
@@ -618,7 +607,6 @@ void StartDefaultTask(void *argument)
   MX_USB_DEVICE_Init();
   /* USER CODE BEGIN 5 */
   osTimerStart(LedDimmerTimerHandle, BLINK_MS);
-  osTimerStart(statusReportTimerHandle, REPORTCYCLE_MS);
   /* Infinite loop */
   for (;;)
   {
@@ -657,6 +645,7 @@ void StartDefaultTask(void *argument)
 void StartUSBParserTask(void *argument)
 {
   /* USER CODE BEGIN StartUSBParserTask */
+  OnoffstateTypeDef blinkState = OFF;
   usbCommand_t newCmd;
   uint8_t channelNb;
   uint8_t outBuffer[2];
@@ -666,8 +655,15 @@ void StartUSBParserTask(void *argument)
   {
     if (xQueueReceive(USBFromPCQueueHandle, &newCmd, portMAX_DELAY))
     {
-      if (newCmd.byte[0] < '0' || newCmd.byte[0] > '9')
+      if (newCmd.byte[0] < '0' || newCmd.byte[0] > '8')
         continue;
+
+      if (blinkState == ON){
+        blinkState = OFF;
+      } else {
+        blinkState = ON;
+      }
+      SetLed(9, blinkState);
       channelNb = newCmd.byte[0] - 0x30;
       switch (newCmd.byte[1])
       {
@@ -694,7 +690,7 @@ void StartUSBParserTask(void *argument)
               break;
           }
           CDC_Transmit_FS(outBuffer, 2);
-
+          break;
         default:
           break;
       }
@@ -746,37 +742,6 @@ void ValveSwitchDelayTimerCallback(void *argument)
   /* USER CODE BEGIN ValveSwitchDelayTimerCallback */
   timeStepElapsed();
   /* USER CODE END ValveSwitchDelayTimerCallback */
-}
-
-/* statusReportTimerCallback function */
-void statusReportTimerCallback(void *argument)
-{
-  /* USER CODE BEGIN statusReportTimerCallback */
-
-  uint8_t buffer[NB_SSR + 1];
-  for (uint8_t i = 0; i < NB_SSR; i++)
-  {
-    switch (channelStatus[i])
-    {
-      case SSR_OFF:
-        buffer[i] = '0';
-        break;
-      case SSR_ON:
-        buffer[i] = '1';
-        break;
-      case SSR_PENDING_ON:
-        buffer[i] = '~';
-        break;
-      default:
-        buffer[i] = 'X';
-        break;
-    }
-    buffer[NB_SSR] = STR_CR;
-  }
-
-  CDC_Transmit_FS(buffer, NB_SSR + 1);
-
-  /* USER CODE END statusReportTimerCallback */
 }
 
 /**

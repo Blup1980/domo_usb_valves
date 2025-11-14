@@ -106,7 +106,7 @@ void Error_Handler(void);
 
 /* USER CODE BEGIN Private defines */
 
-#define NB_LED 10
+#define NB_LED 9
 #define NB_SSR 9
 #define EMPTY_SLOT 0xff
 
